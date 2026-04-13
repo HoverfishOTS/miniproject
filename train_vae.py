@@ -143,9 +143,9 @@ def train_vae(epochs=50, start_epoch=1, batch_size=32, lr=1e-4, latent_dim=256, 
             
             wandb.log({"reconstructions": comparison_images, "epoch": epoch})
 
-        # Save model checkpoint every 50 epochs (or on the final epoch)
+        # Save model checkpoint every 200 epochs (or on the final epoch)
         os.makedirs("checkpoints", exist_ok=True)
-        if epoch % 50 == 0 or epoch == epochs:
+        if epoch % 200 == 0 or epoch == epochs:
             checkpoint_path = f"checkpoints/vae_epoch_{epoch}.pth"
             torch.save(model.state_dict(), checkpoint_path)
             print(f"Saved checkpoint to {checkpoint_path}")
@@ -160,14 +160,14 @@ def train_vae(epochs=50, start_epoch=1, batch_size=32, lr=1e-4, latent_dim=256, 
     print("Training Complete. Models saved to ./checkpoints/ and W&B Cloud.")
 
 if __name__ == "__main__":
-    # Resuming from the previous 50 epochs run, and continuing until epoch 150
-    # The program will now start counting from 51 and train an additional 100 epochs.
+    # Resuming from the previous 150 epochs run, and continuing until epoch 2000
+    # The program will now start counting from 151.
     train_vae(
-        epochs=150, 
-        start_epoch=51, 
+        epochs=2000, 
+        start_epoch=151, 
         batch_size=32, 
         lr=1e-4, 
         latent_dim=256, 
         beta=1.0, 
-        resume_checkpoint="checkpoints/vae_epoch_50.pth"
+        resume_checkpoint="checkpoints/vae_epoch_150.pth"
     )
