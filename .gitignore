@@ -40,9 +40,12 @@ Thumbs.db
 
 # Project specifics
 checkpoints/
+checkpoints_siamese/
 data/
+xbd_data/
 *.pth
 *.pt
+*.tar.gz
 datasets/
 
 # Writeups
