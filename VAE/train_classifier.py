@@ -9,7 +9,7 @@ from sklearn.metrics import accuracy_score, f1_score
 import numpy as np
 
 from dataset import LADIDataset
-from model_vae import VAE
+from VAE.model_vae import VAE
 
 class LatentClassifier(nn.Module):
     def __init__(self, latent_dim=256, num_classes=12):

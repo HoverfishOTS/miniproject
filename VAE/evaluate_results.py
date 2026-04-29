@@ -7,8 +7,8 @@ import matplotlib.pyplot as plt
 import wandb
 
 from dataset import LADIDataset
-from model_vae import VAE
-from train_classifier import LatentClassifier
+from VAE.model_vae import VAE
+from VAE.train_classifier import LatentClassifier
 
 def evaluate(vae_weights="checkpoints/vae_epoch_50.pth", classifier_weights="checkpoints/classifier_best.pth", latent_dim=256, num_classes=12):
     # Initialize W&B purely for logging final results

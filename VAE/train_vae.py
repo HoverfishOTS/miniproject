@@ -7,7 +7,7 @@ import wandb
 from tqdm import tqdm
 
 from dataset import LADIDataset
-from model_vae import VAE
+from VAE.model_vae import VAE
 
 def vae_loss_function(recon_x, x, mu, logvar, beta=1.0):
     """
