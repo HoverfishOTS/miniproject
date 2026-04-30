@@ -56,6 +56,60 @@ class FocalDiceLoss(nn.Module):
 
         return focal_loss + dice_loss
 
+def lovasz_grad(gt_sorted):
+    """
+    Computes gradient of the Lovasz extension w.r.t sorted errors
+    """
+    p = len(gt_sorted)
+    gts = gt_sorted.sum()
+    intersection = gts - gt_sorted.float().cumsum(0)
+    union = gts + (1 - gt_sorted).float().cumsum(0)
+    jaccard = 1. - intersection / union
+    if p > 1: # cover 1-pixel case
+        jaccard[1:p] = jaccard[1:p] - jaccard[0:-1]
+    return jaccard
+
+def lovasz_softmax_flat(probs, labels, weights=None):
+    """
+    Multi-class Lovasz-Softmax loss
+    """
+    if probs.numel() == 0:
+        return probs * 0.
+    C = probs.size(1)
+    losses = []
+    for c in range(C):
+        fg = (labels == c).float() # foreground for class c
+        if fg.sum() == 0:
+            continue
+        class_pred = probs[:, c]
+        errors = (fg - class_pred).abs()
+        errors_sorted, perm = torch.sort(errors, 0, descending=True)
+        perm = perm.data
+        fg_sorted = fg[perm]
+        loss_c = torch.dot(errors_sorted, lovasz_grad(fg_sorted))
+        if weights is not None:
+            loss_c = loss_c * weights[c]
+        losses.append(loss_c)
+    if len(losses) == 0:
+        return probs.sum() * 0.
+    return sum(losses) / len(losses)
+
+class LovaszSoftmaxLoss(nn.Module):
+    def __init__(self, weight=None):
+        super(LovaszSoftmaxLoss, self).__init__()
+        self.weight = weight
+
+    def forward(self, logits, targets):
+        probs = F.softmax(logits, dim=1)
+        # flatten
+        probs = probs.permute(0, 2, 3, 1).contiguous().view(-1, probs.size(1))
+        targets = targets.view(-1)
+        
+        loss_ce = F.cross_entropy(logits, targets.view_as(logits[:,0,:,:]), weight=self.weight)
+        loss_lovasz = lovasz_softmax_flat(probs, targets, weights=self.weight)
+        return loss_ce + loss_lovasz
+
+
 def train_siamese(epochs=200, start_epoch=1, batch_size=24, lr=1e-4, resume_checkpoint=None):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Training on device: {device}")

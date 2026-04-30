@@ -37,6 +37,45 @@ class XBDDataset(Dataset):
     def __len__(self):
         return self.length
 
+    def get_sample_weights(self):
+        """
+        Computes sampling weights for each image based on damage severity.
+        Used by WeightedRandomSampler to balance the dataset.
+        """
+        weights_cache_path = os.path.join(self.split_dir, "sample_weights.pt")
+        if os.path.exists(weights_cache_path):
+            print("[*] Loading cached sample weights...")
+            return torch.load(weights_cache_path, weights_only=True)
+            
+        print("[*] Calculating sample weights based on damage severity (this might take a minute)...")
+        weights = []
+        for img_path in self.image_paths:
+            label_path = img_path.replace("images", "labels").replace(".png", ".json")
+            weight = 1.0 # Base weight for images with no damage or un-classified
+            if os.path.exists(label_path):
+                with open(label_path, 'r') as f:
+                    try:
+                        label_data = json.load(f)
+                        if "features" in label_data and "xy" in label_data["features"]:
+                            for feature in label_data["features"]["xy"]:
+                                props = feature.get("properties", {})
+                                subtype = props.get("subtype", "no-damage")
+                                class_id = self.damage_dict.get(subtype, 0)
+                                if class_id == 3: # Destroyed
+                                    weight = 50.0
+                                    break # Maximum weight achieved
+                                elif class_id == 2: # Major damage
+                                    weight = max(weight, 20.0)
+                                elif class_id == 1: # Minor damage
+                                    weight = max(weight, 5.0)
+                    except json.JSONDecodeError:
+                        pass
+            weights.append(weight)
+            
+        weights_tensor = torch.tensor(weights, dtype=torch.float)
+        torch.save(weights_tensor, weights_cache_path)
+        return weights_tensor
+
     def parse_wkt_polygon(self, wkt_str):
         # Extract string format: "POLYGON ((x y, x y, ...))" -> [(x,y), (x,y)]
         wkt_str = wkt_str.replace("POLYGON", "").replace("(", "").replace(")", "").strip()
@@ -71,19 +110,20 @@ class XBDDataset(Dataset):
             mask_img = Image.new('L', (w, h), color=0)
             draw = ImageDraw.Draw(mask_img)
 
-            with open(post_label_path, 'r') as f:
-                label_data = json.load(f)
+            if os.path.exists(post_label_path):
+                with open(post_label_path, 'r') as f:
+                    label_data = json.load(f)
 
-            if "features" in label_data and "xy" in label_data["features"]:
-                for feature in label_data["features"]["xy"]:
-                    props = feature.get("properties", {})
-                    subtype = props.get("subtype", "no-damage")
-                    class_id = self.damage_dict.get(subtype, 0)
-                    
-                    wkt_poly = feature.get("wkt", "")
-                    if "POLYGON" in wkt_poly:
-                        poly_coords = self.parse_wkt_polygon(wkt_poly)
-                        draw.polygon(poly_coords, outline=class_id, fill=class_id)
+                if "features" in label_data and "xy" in label_data["features"]:
+                    for feature in label_data["features"]["xy"]:
+                        props = feature.get("properties", {})
+                        subtype = props.get("subtype", "no-damage")
+                        class_id = self.damage_dict.get(subtype, 0)
+                        
+                        wkt_poly = feature.get("wkt", "")
+                        if "POLYGON" in wkt_poly:
+                            poly_coords = self.parse_wkt_polygon(wkt_poly)
+                            draw.polygon(poly_coords, outline=class_id, fill=class_id)
 
             # 4. Resize Operations (HUGE CPU Bottleneck)
             pre_img = TF.resize(pre_img, (self.img_size, self.img_size), interpolation=Image.BILINEAR)

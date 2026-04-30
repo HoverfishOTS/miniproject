@@ -39,8 +39,7 @@ ehthumbs.db
 Thumbs.db
 
 # Project specifics
-checkpoints/
-checkpoints_siamese/
+checkpoints*/
 data/
 xbd_data/
 *.pth
